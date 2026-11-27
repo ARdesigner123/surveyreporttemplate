@@ -1,0 +1,6 @@
+# Desktop-only files - not needed on the website
+app.exe
+launcher/
+server.ps1
+*.bat
+README.txt

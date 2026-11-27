@@ -1,0 +1,648 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MQuest Service Report</title>
+<style>
+  :root {
+    --line: #4B897D;
+    --ink: #000;
+    --label: 12px;
+    --accent: #1f6fb5;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #e9ecef; color: var(--ink); font-family: Arial, Helvetica, sans-serif; }
+
+  /* ---------- Toolbar (screen only) ---------- */
+  .toolbar {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+    padding: 10px 16px; background: #fff; border-bottom: 1px solid #ccd;
+  }
+  .toolbar button, .modal button {
+    font: 600 14px Arial, sans-serif; padding: 10px 16px; border-radius: 6px;
+    border: 1px solid #b9c2cc; background: #fff; cursor: pointer;
+  }
+  .toolbar button.primary, .modal button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .toolbar .hint { width: 100%; text-align: center; font-size: 12px; color: #666; }
+
+  /* ---------- A4 sheet ---------- */
+  .sheet {
+    width: 100%; max-width: 794px; margin: 16px auto; background: #fff;
+    padding: 24px 32px 32px; box-shadow: 0 2px 10px rgba(0,0,0,.15);
+  }
+  .head { display: flex; align-items: center; }
+  .head img { width: 155px; height: auto; display: block; }
+  .company { margin-left: auto; width: 52%; font-size: 12px; line-height: 1.35; }
+  h1 { font-size: 23px; font-weight: bold; margin: 14px 0 10px; }
+
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  td { border: 1.2px solid var(--line); vertical-align: top; padding: 4px 6px; font-size: var(--label); }
+  .lbl { display: block; font-size: var(--label); }
+
+  input[type=text], input[type=tel], textarea, select {
+    width: 100%; border: 0; background: transparent; font: 14px Arial, sans-serif; color: var(--ink);
+    padding: 4px 0; outline: none;
+  }
+  textarea { resize: none; overflow: hidden; line-height: 1.35; display: block; }
+  .field:focus, .field:hover { background: #f2f8ff; }
+  select { cursor: pointer; padding: 4px 0; appearance: auto; }
+
+  .r-cust td { height: 70px; }
+  .r-addr td { height: 74px; }
+  .r-user td { height: 50px; }
+
+  /* Date fields */
+  .date-wrap { position: relative; }
+  .date-wrap .date-show { cursor: pointer; }
+  .date-wrap input[type=date] {
+    position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0;
+  }
+
+  /* Problem description */
+  .sec-title { text-align: center; font-size: 17px; padding: 6px; }
+  .prob td { min-height: 330px; height: 330px; padding: 8px 10px; }
+  .prob-item { margin-bottom: 8px; }
+  .prob-item .lbl { font-weight: bold; font-size: 13px; }
+  .prob-item textarea { min-height: 52px; }
+
+  /* Job type */
+  .job td { font-size: 14px; padding: 10px 6px; }
+  .job label { display: inline-flex; align-items: center; gap: 8px; margin-left: 38px; cursor: pointer; user-select: none; }
+  .job input { display: none; }
+  .box { width: 14px; height: 14px; border: 1.2px solid #000; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; line-height: 1; }
+  .job input:checked + .box::after { content: "\2713"; font-weight: bold; }
+
+  .r-line td { height: 44px; }
+  .r-line input { padding-top: 8px; }
+  .cert { font-size: 12px; margin: 10px 0 12px; }
+
+  /* Signature section */
+  .sig td { font-size: 12px; }
+  .r-name td { height: 52px; }
+  .name-line { display: flex; gap: 6px; align-items: flex-start; }
+  .name-line .tag { white-space: nowrap; padding-top: 0; }
+  .name-line input { flex: 1; padding-top: 18px; }
+  .r-sign td { height: 120px; position: relative; padding: 0; }
+  .sigpad {
+    position: absolute; inset: 0; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .sigpad img { max-width: 92%; max-height: 92px; display: block; }
+  .sigpad .tap { color: #8a96a3; font-size: 13px; border: 1px dashed #b9c2cc; border-radius: 6px; padding: 8px 12px; }
+  .sig-tag { position: absolute; right: 6px; bottom: 4px; font-size: 12px; pointer-events: none; }
+  .sig-clear { position: absolute; top: 4px; right: 4px; border: 0; background: #eee; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px; line-height: 24px; padding: 0; }
+  .r-desig td { height: 52px; }
+
+  /* ---------- Signature modal ---------- */
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; z-index: 50; align-items: center; justify-content: center; padding: 12px; }
+  .modal.open { display: flex; }
+  .modal-card { background: #fff; border-radius: 10px; width: 100%; max-width: 720px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .modal-card h2 { margin: 0; font-size: 17px; }
+  .modal-card p { margin: 0; font-size: 13px; color: #555; }
+  .canvas-wrap { position: relative; border: 2px dashed #9aa7b4; border-radius: 8px; height: 260px; background: #fff; }
+  .canvas-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+  .canvas-wrap .baseline { position: absolute; left: 6%; right: 6%; bottom: 22%; border-bottom: 1px solid #ccd; pointer-events: none; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+
+  /* Missing required field highlight */
+  .missing { background: #fff1f0 !important; box-shadow: inset 0 0 0 2px #e5484d; }
+  .toolbar button:disabled { opacity: .6; cursor: wait; }
+
+  /* ---------- PDF rendering copy (fixed A4 width, off-screen) ---------- */
+  #pdfStage { position: absolute; left: -10000px; top: 0; width: 794px; }
+  .sheet.pdf { width: 794px; max-width: none; margin: 0; padding: 30px 42px; box-shadow: none; }
+  .sheet.pdf .head img { width: 130px; }
+  .sheet.pdf h1 { font-size: 23px; margin: 8px 0 8px; }
+  .sheet.pdf td { font-size: 12px; }
+  .sheet.pdf td.sec-title { font-size: 17px; }
+  .sheet.pdf .r-cust td { height: 58px; }
+  .sheet.pdf .r-addr td { height: 64px; }
+  .sheet.pdf .r-user td { height: 44px; }
+  .sheet.pdf .prob td { height: 270px; }
+  .sheet.pdf .r-line td { height: 36px; }
+  .sheet.pdf .cert { margin: 8px 0 8px; }
+  .sheet.pdf .r-name td, .sheet.pdf .r-desig td { height: 46px; }
+  .sheet.pdf .r-sign td { height: 96px; }
+  .sheet.pdf .sigpad img { max-height: 76px; }
+  .sheet.pdf .job td { font-size: 14px; }
+  .sheet.pdf .job label { display: inline-flex; margin: 0 0 0 38px; }
+  .sheet.pdf .company { font-size: 12px; width: 52%; }
+  .pdf-val { font: 14px Arial, sans-serif; white-space: pre-wrap; word-wrap: break-word; padding: 3px 0 2px; min-height: 18px; }
+  .r-line .pdf-val { padding-top: 6px; }
+  .name-line .pdf-val { flex: 1; padding-top: 18px; }
+  .box.ticked::after { content: none; }
+
+  /* ---------- Small screens (phone) ---------- */
+  @media (max-width: 600px) {
+    .sheet { margin: 0; padding: 14px 12px 20px; box-shadow: none; }
+    .head img { width: 100px; }
+    .company { font-size: 10px; width: 60%; }
+    h1 { font-size: 17px; }
+    :root { --label: 10.5px; }
+    input[type=text], input[type=tel], textarea, select { font-size: 16px; } /* stops iOS zoom */
+    .job label { margin-left: 10px; display: flex; margin-top: 6px; }
+    .canvas-wrap { height: 55vh; }
+  }
+
+  /* ---------- Print / Save as PDF ---------- */
+  @page { size: A4; margin: 8mm 11mm; }
+  @media print {
+    html, body { background: #fff; }
+    .toolbar, .modal, .sig-clear, .tap, .no-print { display: none !important; }
+    .sheet { box-shadow: none; margin: 0; padding: 0; max-width: none; }
+    .field:focus, .field:hover { background: transparent; }
+    select { appearance: none; -webkit-appearance: none; }
+    td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .head img { width: 130px; }
+    h1 { margin: 8px 0 8px; }
+    .r-cust td { height: 58px; }
+    .r-addr td { height: 64px; }
+    .r-user td { height: 44px; }
+    .prob td { height: 270px; }
+    .r-line td { height: 36px; }
+    .r-line input { padding-top: 4px; }
+    .cert { margin: 8px 0 8px; }
+    .r-name td, .r-desig td { height: 46px; }
+    .r-sign td { height: 96px; }
+    .sigpad img { max-height: 76px; }
+    select.empty { color: transparent; }
+    .prob-item { break-inside: avoid; }
+    input::placeholder, textarea::placeholder { color: transparent; }
+    .missing { background: transparent !important; box-shadow: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <button class="primary" id="btnPdf">Download PDF</button>
+  <button id="btnPrint">Print</button>
+  <button id="btnNew">New Report</button>
+  <div class="hint">Your work is saved automatically on this device. Fill in the form, then press Download PDF. Tap a signature box to sign with your finger, stylus or mouse.</div>
+</div>
+
+<div class="sheet" id="sheet">
+  <div class="head">
+    <img src="logo.jpeg" alt="MQuest — Innovate Enable Empower">
+    <div class="company">
+      MQUEST PTE LTD<br>
+      8 Kaki Bukit Road 2, #03-01/02, Singapore 417841<br>
+      Tel: (65) 63772377, Fax: (65) 31257265
+    </div>
+  </div>
+
+  <h1>SERVICE REPORT &amp; ACCEPTANCE SHEET</h1>
+
+  <!-- Customer / dates / contact -->
+  <table>
+    <tr class="r-cust">
+      <td>
+        <span class="lbl">CUSTOMER:</span>
+        <select id="customer" class="field" data-save></select>
+        <input type="text" id="customerOther" class="field" data-save placeholder="Type customer name" style="display:none">
+      </td>
+      <td>
+        <span class="lbl">DATE ATTEND:</span>
+        <div class="date-wrap">
+          <input type="text" class="field date-show" id="dateAttendShow" placeholder="DD/MM/YYYY" readonly tabindex="-1">
+          <input type="date" id="dateAttend" data-save aria-label="Date attend">
+        </div>
+      </td>
+    </tr>
+    <tr class="r-addr">
+      <td>
+        <span class="lbl">ADDRESS:</span>
+        <textarea id="address" class="field" rows="2" data-save></textarea>
+      </td>
+      <td>
+        <span class="lbl">RESOLUTION DATE:</span>
+        <div class="date-wrap">
+          <input type="text" class="field date-show" id="dateResolutionShow" placeholder="DD/MM/YYYY" readonly tabindex="-1">
+          <input type="date" id="dateResolution" data-save aria-label="Resolution date">
+        </div>
+      </td>
+    </tr>
+    <tr class="r-user">
+      <td>
+        <span class="lbl">USER:</span>
+        <input type="text" id="user" class="field" data-save>
+      </td>
+      <td>
+        <span class="lbl">CONTACT NO:</span>
+        <input type="tel" id="contact" class="field" data-save>
+      </td>
+    </tr>
+  </table>
+
+  <!-- Problem description -->
+  <table>
+    <tr><td class="sec-title">PROBLEM DESCRIPTION &amp; RESOLUTION / SERVICE PERFORMED</td></tr>
+    <tr class="prob">
+      <td>
+        <div class="prob-item">
+          <span class="lbl">Problem Statement:</span>
+          <textarea id="problem" class="field" data-save placeholder="Describe the problem..."></textarea>
+        </div>
+        <div class="prob-item">
+          <span class="lbl">Solution:</span>
+          <textarea id="solution" class="field" data-save placeholder="Describe the solution / service performed..."></textarea>
+        </div>
+        <div class="prob-item">
+          <span class="lbl">Cause:</span>
+          <textarea id="cause" class="field" data-save placeholder="Describe the cause..."></textarea>
+        </div>
+        <div class="prob-item">
+          <span class="lbl">Preventive Action:</span>
+          <textarea id="preventive" class="field" data-save placeholder="Describe the preventive action..."></textarea>
+        </div>
+      </td>
+    </tr>
+    <tr class="job">
+      <td>
+        This job is
+        <label><input type="checkbox" name="job" value="warranty" id="jobWarranty" data-save><span class="box"></span>Covered by Warranty</label>
+        <label><input type="checkbox" name="job" value="chargeable" id="jobChargeable" data-save><span class="box"></span>Chargeable</label>
+        <label><input type="checkbox" name="job" value="testing" id="jobTesting" data-save><span class="box"></span>Testing</label>
+      </td>
+    </tr>
+  </table>
+
+  <!-- Remarks / materials -->
+  <table>
+    <tr><td><span class="lbl">REMARKS:</span></td><td><span class="lbl">MATERIALS USED:</span></td></tr>
+    <tr class="r-line">
+      <td><input type="text" id="remarks1" class="field" data-save></td>
+      <td><input type="text" id="materials1" class="field" data-save></td>
+    </tr>
+    <tr class="r-line">
+      <td><input type="text" id="remarks2" class="field" data-save></td>
+      <td><input type="text" id="materials2" class="field" data-save></td>
+    </tr>
+  </table>
+
+  <div class="cert">CERTIFIED THAT THE ABOVE WORK HAS BEEN SATISFACTORY CARRIED OUT</div>
+
+  <!-- Sign-off -->
+  <table class="sig">
+    <tr><td>MQUEST</td><td>CUSTOMER</td></tr>
+    <tr class="r-name">
+      <td>
+        <div class="name-line">
+          <span class="tag">SERVICED BY</span>
+          <input type="text" id="servicedBy" class="field" data-save>
+          <span class="tag">(NAME)</span>
+        </div>
+      </td>
+      <td>
+        <div class="name-line">
+          <span class="tag">ACCEPTED BY:</span>
+          <input type="text" id="acceptedBy" class="field" data-save>
+          <span class="tag">(NAME)</span>
+        </div>
+      </td>
+    </tr>
+    <tr class="r-sign">
+      <td>
+        <div class="sigpad" data-sig="sigMquest" role="button" tabindex="0" aria-label="MQuest signature"></div>
+        <span class="sig-tag">(SIGNATURE)</span>
+      </td>
+      <td>
+        <div class="sigpad" data-sig="sigCustomer" role="button" tabindex="0" aria-label="Customer signature"></div>
+        <span class="sig-tag">(SIGNATURE)</span>
+      </td>
+    </tr>
+    <tr class="r-desig">
+      <td><span class="lbl">DESIGNATION:</span><input type="text" id="desigMquest" class="field" data-save></td>
+      <td><span class="lbl">DESIGNATION:</span><input type="text" id="desigCustomer" class="field" data-save></td>
+    </tr>
+  </table>
+</div>
+
+<!-- Signature modal -->
+<div class="modal" id="sigModal" aria-modal="true" role="dialog">
+  <div class="modal-card">
+    <h2 id="sigTitle">Signature</h2>
+    <p>Sign inside the box using your finger, stylus or mouse.</p>
+    <div class="canvas-wrap"><div class="baseline"></div><canvas id="sigCanvas"></canvas></div>
+    <div class="modal-actions">
+      <button id="sigClear">Clear</button>
+      <button id="sigCancel">Cancel</button>
+      <button class="primary" id="sigDone">Done</button>
+    </div>
+  </div>
+</div>
+
+<div id="pdfStage" aria-hidden="true"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="customers.js"></script>
+<script>
+(function () {
+  const STORE_KEY = "mquest-service-report-draft";
+  const OTHER = "__other__";
+  const customers = Array.isArray(window.MQUEST_CUSTOMERS) ? window.MQUEST_CUSTOMERS : [];
+  const $ = (id) => document.getElementById(id);
+  const signatures = { sigMquest: "", sigCustomer: "" };
+
+  /* ---------- Customer dropdown ---------- */
+  const sel = $("customer");
+  sel.add(new Option("-- Select customer --", ""));
+  customers.forEach((c, i) => sel.add(new Option(c.name, String(i))));
+  sel.add(new Option("Other (type manually)", OTHER));
+
+  function onCustomerChange(fillAddress) {
+    const v = sel.value;
+    $("customerOther").style.display = v === OTHER ? "" : "none";
+    sel.classList.toggle("empty", v === "" || v === OTHER);
+    if (fillAddress) {
+      const c = customers[Number(v)];
+      $("address").value = (v !== "" && v !== OTHER && c) ? (c.address || "") : "";
+      autoGrow($("address"));
+    }
+  }
+  sel.addEventListener("change", () => { onCustomerChange(true); save(); });
+
+  /* ---------- Dates (DD/MM/YYYY) ---------- */
+  function toDMY(iso) {
+    if (!iso) return "";
+    const [y, m, d] = iso.split("-");
+    return `${d}/${m}/${y}`;
+  }
+  [["dateAttend", "dateAttendShow"], ["dateResolution", "dateResolutionShow"]].forEach(([id, showId]) => {
+    const inp = $(id);
+    const sync = () => { $(showId).value = toDMY(inp.value); };
+    inp.addEventListener("change", () => { sync(); save(); });
+    inp.addEventListener("input", sync);
+    inp.addEventListener("click", () => { try { inp.showPicker(); } catch (e) {} });
+    inp._sync = sync;
+  });
+
+  /* ---------- Job type: tick one ---------- */
+  document.querySelectorAll('input[name="job"]').forEach((cb) => {
+    cb.addEventListener("change", () => {
+      if (cb.checked) document.querySelectorAll('input[name="job"]').forEach((o) => { if (o !== cb) o.checked = false; });
+      save();
+    });
+  });
+
+  /* ---------- Auto-growing text areas ---------- */
+  function autoGrow(t) { t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; }
+  document.querySelectorAll("textarea").forEach((t) => t.addEventListener("input", () => autoGrow(t)));
+
+  /* ---------- Save / load draft ---------- */
+  const saveables = () => document.querySelectorAll("[data-save]");
+  function save() {
+    const data = { signatures };
+    saveables().forEach((el) => { data[el.id] = el.type === "checkbox" ? el.checked : el.value; });
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(data)); } catch (e) {}
+  }
+  function load() {
+    let data = null;
+    try { data = JSON.parse(localStorage.getItem(STORE_KEY) || "null"); } catch (e) {}
+    if (!data) return;
+    saveables().forEach((el) => {
+      if (!(el.id in data)) return;
+      if (el.type === "checkbox") el.checked = !!data[el.id];
+      else el.value = data[el.id];
+    });
+    if (data.signatures) Object.assign(signatures, data.signatures);
+  }
+  document.addEventListener("input", (e) => { if (e.target.matches("[data-save]")) save(); });
+
+  /* ---------- Signature pads ---------- */
+  function renderSig(key) {
+    const pad = document.querySelector(`.sigpad[data-sig="${key}"]`);
+    const td = pad.parentElement;
+    pad.innerHTML = signatures[key]
+      ? `<img alt="Signature" src="${signatures[key]}">`
+      : `<span class="tap">Tap to sign</span>`;
+    let x = td.querySelector(".sig-clear");
+    if (signatures[key] && !x) {
+      x = document.createElement("button");
+      x.className = "sig-clear"; x.type = "button"; x.title = "Remove signature"; x.textContent = "×";
+      x.addEventListener("click", (e) => { e.stopPropagation(); signatures[key] = ""; renderSig(key); save(); });
+      td.appendChild(x);
+    } else if (!signatures[key] && x) x.remove();
+  }
+
+  const modal = $("sigModal"), canvas = $("sigCanvas"), ctx = canvas.getContext("2d");
+  let activeKey = null, drawing = false, hasInk = false, last = null;
+
+  function sizeCanvas() {
+    const r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#0a1a4a"; ctx.lineWidth = 2.6;
+    hasInk = false;
+  }
+  function openPad(key) {
+    activeKey = key;
+    $("sigTitle").textContent = key === "sigMquest" ? "MQuest Signature (Serviced by)" : "Customer Signature (Accepted by)";
+    modal.classList.add("open");
+    sizeCanvas();
+  }
+  function closePad() { modal.classList.remove("open"); activeKey = null; }
+
+  const pos = (e) => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  canvas.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    drawing = true; last = pos(e);
+    ctx.beginPath(); ctx.arc(last.x, last.y, ctx.lineWidth / 2, 0, Math.PI * 2); ctx.fillStyle = ctx.strokeStyle; ctx.fill();
+    hasInk = true;
+  });
+  canvas.addEventListener("pointermove", (e) => {
+    if (!drawing) return; e.preventDefault();
+    const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    for (const ev of events) {
+      const p = pos(ev);
+      ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+      last = p;
+    }
+  });
+  const stop = () => { drawing = false; };
+  canvas.addEventListener("pointerup", stop);
+  canvas.addEventListener("pointercancel", stop);
+
+  // Crop the drawing to its ink so it fills the signature box nicely.
+  function croppedDataURL() {
+    const { width: w, height: h } = canvas;
+    const px = ctx.getImageData(0, 0, w, h).data;
+    let x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (px[(y * w + x) * 4 + 3] > 0) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    }
+    if (x1 < 0) return "";
+    const pad = 8, cw = x1 - x0 + 1 + pad * 2, ch = y1 - y0 + 1 + pad * 2;
+    const out = document.createElement("canvas"); out.width = cw; out.height = ch;
+    out.getContext("2d").drawImage(canvas, x0 - pad, y0 - pad, cw, ch, 0, 0, cw, ch);
+    return out.toDataURL("image/png");
+  }
+
+  $("sigClear").addEventListener("click", () => { ctx.clearRect(0, 0, canvas.width, canvas.height); hasInk = false; });
+  $("sigCancel").addEventListener("click", closePad);
+  $("sigDone").addEventListener("click", () => {
+    if (activeKey) { signatures[activeKey] = hasInk ? croppedDataURL() : signatures[activeKey]; renderSig(activeKey); save(); }
+    closePad();
+  });
+  document.querySelectorAll(".sigpad").forEach((pad) => {
+    pad.addEventListener("click", () => openPad(pad.dataset.sig));
+    pad.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPad(pad.dataset.sig); } });
+  });
+  window.addEventListener("resize", () => { if (modal.classList.contains("open") && !hasInk) sizeCanvas(); });
+
+  /* ---------- Required fields check ---------- */
+  function customerName() {
+    return sel.value === OTHER ? $("customerOther").value.trim() : ((customers[Number(sel.value)] || {}).name || "");
+  }
+  function reportFileName() {
+    const date = $("dateAttendShow").value.replace(/\//g, "-");
+    return ["Service Report", customerName(), date].filter(Boolean).join(" - ").replace(/[\\/:*?"<>|]+/g, " ").trim();
+  }
+  function missingFields() {
+    const checks = [
+      ["Customer", () => customerName(), sel.value === OTHER ? $("customerOther") : sel],
+      ["Address", () => $("address").value.trim(), $("address")],
+      ["Date Attend", () => $("dateAttend").value, $("dateAttendShow")],
+      ["Resolution Date", () => $("dateResolution").value, $("dateResolutionShow")],
+      ["User", () => $("user").value.trim(), $("user")],
+      ["Contact No", () => $("contact").value.trim(), $("contact")],
+      ["Problem Statement", () => $("problem").value.trim(), $("problem")],
+      ["Solution", () => $("solution").value.trim(), $("solution")],
+      ["Cause", () => $("cause").value.trim(), $("cause")],
+      ["Preventive Action", () => $("preventive").value.trim(), $("preventive")],
+      ["This job is (Warranty / Chargeable / Testing)", () => document.querySelector('input[name="job"]:checked'), document.querySelector(".job td")],
+      ["Serviced By (name)", () => $("servicedBy").value.trim(), $("servicedBy")],
+      ["MQuest signature", () => signatures.sigMquest, document.querySelector('[data-sig="sigMquest"]')],
+      ["Accepted By (name)", () => $("acceptedBy").value.trim(), $("acceptedBy")],
+      ["Customer signature", () => signatures.sigCustomer, document.querySelector('[data-sig="sigCustomer"]')],
+    ];
+    document.querySelectorAll(".missing").forEach((e) => e.classList.remove("missing"));
+    const missing = checks.filter(([, ok]) => !ok());
+    missing.forEach(([, , el]) => el && el.classList.add("missing"));
+    return missing;
+  }
+  // Remove the red highlight as soon as the user fixes a field.
+  document.addEventListener("input", (e) => e.target.classList && e.target.classList.remove("missing"));
+  document.addEventListener("change", (e) => {
+    if (e.target.id === "dateAttend") $("dateAttendShow").classList.remove("missing");
+    if (e.target.id === "dateResolution") $("dateResolutionShow").classList.remove("missing");
+    if (e.target.name === "job") document.querySelector(".job td").classList.remove("missing");
+    if (e.target === sel) sel.classList.remove("missing");
+  });
+
+  /* ---------- PDF download ---------- */
+  // Builds a clean copy of the form (typed values as plain text) and renders it to an A4 PDF.
+  function buildPdfCopy() {
+    const copy = $("sheet").cloneNode(true);
+    copy.removeAttribute("id");
+    copy.classList.add("pdf");
+    const live = $("sheet").querySelectorAll("input, textarea, select");
+    const cloned = copy.querySelectorAll("input, textarea, select");
+    cloned.forEach((el, i) => {
+      const src = live[i];
+      if (src.type === "date") { el.remove(); return; }
+      if (src.type === "checkbox") {
+        const box = el.nextElementSibling;
+        if (box) { box.textContent = src.checked ? "✓" : ""; box.classList.add("ticked"); box.style.fontWeight = "bold"; }
+        el.remove(); return;
+      }
+      if (src.style.display === "none") { el.remove(); return; }
+      let v = src.value;
+      if (src.tagName === "SELECT") v = (src.value === "" || src.value === OTHER) ? "" : src.selectedOptions[0].text;
+      const d = document.createElement("div");
+      d.className = "pdf-val";
+      d.textContent = v;
+      el.replaceWith(d);
+    });
+    copy.querySelectorAll(".sig-clear, .tap, .missing").forEach((e) => e.classList.contains("missing") ? e.classList.remove("missing") : e.remove());
+    copy.querySelectorAll("[id]").forEach((e) => e.removeAttribute("id"));
+    return copy;
+  }
+
+  async function renderPdf() {
+    if (!window.html2canvas || !window.jspdf) throw new Error("PDF tools did not load. Check your internet connection and refresh the page.");
+    const stage = $("pdfStage");
+    stage.innerHTML = "";
+    const copy = buildPdfCopy();
+    stage.appendChild(copy);
+    try {
+      await Promise.all([...copy.querySelectorAll("img")].map((img) => img.complete ? 0 : new Promise((r) => { img.onload = img.onerror = r; })));
+      const canvas = await html2canvas(copy, { scale: 2, backgroundColor: "#ffffff", useCORS: true, windowWidth: 1024, logging: false });
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
+      const pageW = 210, pageH = 297;
+      const imgH = canvas.height * pageW / canvas.width;
+      if (imgH <= pageH * 1.25) {
+        // Fits on one page (shrink slightly if needed).
+        const scale = Math.min(1, pageH / imgH);
+        const w = pageW * scale, h = imgH * scale;
+        pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", (pageW - w) / 2, 0, w, h);
+      } else {
+        // Very long report: split across pages.
+        const pxPerPage = Math.floor(canvas.width * pageH / pageW);
+        for (let y = 0, page = 0; y < canvas.height; y += pxPerPage, page++) {
+          const slice = document.createElement("canvas");
+          slice.width = canvas.width; slice.height = Math.min(pxPerPage, canvas.height - y);
+          const sctx = slice.getContext("2d");
+          sctx.fillStyle = "#fff"; sctx.fillRect(0, 0, slice.width, slice.height);
+          sctx.drawImage(canvas, 0, -y);
+          if (page > 0) pdf.addPage();
+          pdf.addImage(slice.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, pageW, slice.height * pageW / slice.width);
+        }
+      }
+      return pdf;
+    } finally {
+      stage.innerHTML = "";
+    }
+  }
+  window.MQ_renderPdf = renderPdf; // used for testing
+
+  $("btnPdf").addEventListener("click", async () => {
+    const missing = missingFields();
+    if (missing.length) {
+      const list = missing.map(([n]) => "• " + n).join("\n");
+      if (!confirm("These fields are not filled in yet (highlighted in red):\n\n" + list + "\n\nDownload the PDF anyway?")) {
+        const first = missing[0][2];
+        if (first) first.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+    }
+    const btn = $("btnPdf"), label = btn.textContent;
+    btn.disabled = true; btn.textContent = "Creating PDF...";
+    try {
+      const pdf = await renderPdf();
+      pdf.save((reportFileName() || "Service Report") + ".pdf");
+    } catch (err) {
+      alert("Sorry, the PDF could not be created.\n\n" + err.message + "\n\nYou can use the Print button and choose \"Save as PDF\" instead.");
+    } finally {
+      btn.disabled = false; btn.textContent = label;
+    }
+  });
+
+  /* ---------- Toolbar ---------- */
+  $("btnPrint").addEventListener("click", () => {
+    const old = document.title;
+    document.title = reportFileName() || old;
+    document.querySelectorAll("textarea").forEach(autoGrow);
+    window.print();
+    setTimeout(() => { document.title = old; }, 500);
+  });
+  $("btnNew").addEventListener("click", () => {
+    if (!confirm("Start a new report? This clears everything on the form, including signatures.")) return;
+    try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+    location.reload();
+  });
+
+  /* ---------- Init ---------- */
+  load();
+  onCustomerChange(false);
+  $("dateAttend")._sync(); $("dateResolution")._sync();
+  Object.keys(signatures).forEach(renderSig);
+  requestAnimationFrame(() => document.querySelectorAll("textarea").forEach(autoGrow));
+})();
+</script>
+</body>
+</html>
