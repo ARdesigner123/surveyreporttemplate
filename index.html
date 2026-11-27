@@ -35,7 +35,12 @@
   .head { display: flex; align-items: center; }
   .head img { width: 155px; height: auto; display: block; }
   .company { margin-left: auto; width: 52%; font-size: 12px; line-height: 1.35; }
-  h1 { font-size: 23px; font-weight: bold; margin: 14px 0 10px; }
+  h1 { font-size: 23px; font-weight: bold; margin: 0; }
+  .title-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin: 14px 0 10px; }
+  .ref { display: flex; align-items: center; border: 1.2px solid var(--line); padding: 0 6px; flex: 0 1 230px; min-width: 190px; margin-left: auto; cursor: text; }
+  .title-row h1 { white-space: nowrap; flex-shrink: 0; }
+  .ref-lbl { font-size: 12px; font-weight: bold; white-space: nowrap; margin-right: 6px; }
+  .ref input[type=text], .ref .pdf-val { flex: 1 1 0; width: auto; font-weight: bold; padding: 6px 0; min-width: 0; }
 
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   td { border: 1.2px solid var(--line); vertical-align: top; padding: 4px 6px; font-size: var(--label); }
@@ -113,7 +118,8 @@
   #pdfStage { position: absolute; left: -10000px; top: 0; width: 794px; }
   .sheet.pdf { width: 794px; max-width: none; margin: 0; padding: 30px 42px; box-shadow: none; }
   .sheet.pdf .head img { width: 130px; }
-  .sheet.pdf h1 { font-size: 23px; margin: 8px 0 8px; }
+  .sheet.pdf h1 { font-size: 23px; }
+  .sheet.pdf .title-row { margin: 8px 0 8px; flex-wrap: nowrap; }
   .sheet.pdf td { font-size: 12px; }
   .sheet.pdf td.sec-title { font-size: 17px; }
   .sheet.pdf .r-cust td { height: 58px; }
@@ -139,6 +145,8 @@
     .head img { width: 100px; }
     .company { font-size: 10px; width: 60%; }
     h1 { font-size: 17px; }
+    .title-row h1 { white-space: normal; flex-shrink: 1; }
+    .ref { flex: 1 1 100%; }
     :root { --label: 10.5px; }
     input[type=text], input[type=tel], textarea, select { font-size: 16px; } /* stops iOS zoom */
     .job label { margin-left: 10px; display: flex; margin-top: 6px; }
@@ -155,7 +163,7 @@
     select { appearance: none; -webkit-appearance: none; }
     td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .head img { width: 130px; }
-    h1 { margin: 8px 0 8px; }
+    .title-row { margin: 8px 0 8px; flex-wrap: nowrap; }
     .r-cust td { height: 58px; }
     .r-addr td { height: 64px; }
     .r-user td { height: 44px; }
@@ -192,7 +200,13 @@
     </div>
   </div>
 
-  <h1>SERVICE REPORT &amp; ACCEPTANCE SHEET</h1>
+  <div class="title-row">
+    <h1>SERVICE REPORT &amp; ACCEPTANCE SHEET</h1>
+    <label class="ref">
+      <span class="ref-lbl">REF NO:</span>
+      <input type="text" id="refNo" class="field" data-save autocomplete="off" placeholder="e.g. SR-2026-001">
+    </label>
+  </div>
 
   <!-- Customer / dates / contact -->
   <table>
@@ -360,6 +374,7 @@
       const c = customers[Number(v)];
       $("address").value = (v !== "" && v !== OTHER && c) ? (c.address || "") : "";
       autoGrow($("address"));
+      if ($("address").value) $("address").classList.remove("missing");
     }
   }
   sel.addEventListener("change", () => { onCustomerChange(true); save(); });
@@ -499,10 +514,11 @@
   }
   function reportFileName() {
     const date = $("dateAttendShow").value.replace(/\//g, "-");
-    return ["Service Report", customerName(), date].filter(Boolean).join(" - ").replace(/[\\/:*?"<>|]+/g, " ").trim();
+    return ["Service Report", $("refNo").value.trim(), customerName(), date].filter(Boolean).join(" - ").replace(/[\\/:*?"<>|]+/g, " ").trim();
   }
   function missingFields() {
     const checks = [
+      ["Ref No", () => $("refNo").value.trim(), $("refNo").parentElement],
       ["Customer", () => customerName(), sel.value === OTHER ? $("customerOther") : sel],
       ["Address", () => $("address").value.trim(), $("address")],
       ["Date Attend", () => $("dateAttend").value, $("dateAttendShow")],
@@ -525,12 +541,17 @@
     return missing;
   }
   // Remove the red highlight as soon as the user fixes a field.
-  document.addEventListener("input", (e) => e.target.classList && e.target.classList.remove("missing"));
+  document.addEventListener("input", (e) => {
+    if (!e.target.classList) return;
+    e.target.classList.remove("missing");
+    if (e.target.id === "refNo") e.target.parentElement.classList.remove("missing");
+  });
   document.addEventListener("change", (e) => {
     if (e.target.id === "dateAttend") $("dateAttendShow").classList.remove("missing");
     if (e.target.id === "dateResolution") $("dateResolutionShow").classList.remove("missing");
     if (e.target.name === "job") document.querySelector(".job td").classList.remove("missing");
     if (e.target === sel) sel.classList.remove("missing");
+    if (e.target.id === "refNo") e.target.parentElement.classList.remove("missing");
   });
 
   /* ---------- PDF download ---------- */
